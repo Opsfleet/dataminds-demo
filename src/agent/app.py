@@ -7,7 +7,8 @@ from strands.models import BedrockModel
 from strands_tools import retrieve
 from strands.session.file_session_manager import FileSessionManager
 from strands.agent.conversation_manager import SlidingWindowConversationManager
-
+from mcp import stdio_client, StdioServerParameters
+from strands.tools.mcp import MCPClient
 ## aws imports
 import boto3
 
@@ -29,10 +30,6 @@ logger = logging.getLogger(__name__)
 
 
 
-
-
-
-
 ## env variables
 from dotenv import load_dotenv
 import os
@@ -47,9 +44,11 @@ KNOWLEDGE_BASE_ID = os.getenv("KNOWLEDGE_BASE_ID")
 ## SETTING UP CONFIGS
 model_temperature = 0.2
 system_prompt_path = 'src/agent/prompts/system_prompt.md'
-session_id="test_2",
+session_id="test_3",
 session_storage_dir="sessions/admin" 
 
+# restricted list of mcp tools to use for demo purposes. some tools such as delete_page has been excluded.
+mcp_enabled_tools='confluence_search,confluence_get_page,confluence_get_page_children,confluence_get_comments,confluence_create_page,confluence_update_page'
 
 ## STRANDS AGENT INITIATION
 
@@ -64,8 +63,44 @@ bedrock_model = BedrockModel(
 with open(system_prompt_path,'r',encoding='utf-8') as sys_f:
     system_prompt = sys_f.read()
 
-## SET UP KNOWLEDGE BASE RETRIEVE TOOL
+## SETUP TOOLS
+
+## SETUP KNOWLEDGE BASE RETRIEVE TOOL
 tools = [retrieve]
+
+
+## SETUP CONFLUENCE MCP TOOLS 
+
+
+# Comment out this part if you do not want to use Confluence MCP  
+
+
+CONFLUENCE_URL =os.getenv('CONFLUENCE_URL')
+
+CONFLUENCE_USERNAME = os.getenv('CONFLUENCE_USERNAME')
+CONFLUENCE_TOKEN = os.getenv('CONFLUENCE_TOKEN')
+CONFLUENCE_SPACE_KEY = os.getenv('CONFLUENCE_SPACE_KEY')
+
+
+confluence_mcp_client = MCPClient(lambda: stdio_client(
+    StdioServerParameters(
+        command="uvx",
+        args=[
+            "mcp-atlassian",
+            f"--confluence-url={CONFLUENCE_URL}",
+            f"--confluence-username={CONFLUENCE_USERNAME}",
+            f"--confluence-token={CONFLUENCE_TOKEN}",
+            f"--confluence-spaces-filter={CONFLUENCE_SPACE_KEY}",
+            f"--enabled-tools={mcp_enabled_tools}"
+        ]
+    )
+))
+
+confluence_mcp_client.__enter__()
+confluence_mcp_tools = confluence_mcp_client.list_tools_sync()
+tools = tools + [confluence_mcp_tools]
+
+# confluence mcp integration ends here.
 
 ## SET UP SESSION MANAGER FOR PERSISTING CONVERSATION HISTORY
 session_manager = FileSessionManager(
@@ -225,64 +260,3 @@ if __name__ == "__main__":
         log_level="info"
     ) 
 
-
-
-# import asyncio
-
-
-
-# async def stream_response(): 
-#     mes = """
-#     do to retrieve calls:
-#     search for "azintelecom products"
-#     search for "azintelecom technical solutions"
-#     compare findings
-#     """
-#     async for event in agent.stream_async(mes): 
-      
-        
-#         if "data" in event: 
-#             sse_event = SSEMessageEvent(
-#                 event="message", 
-#                 data = SSEMessageData(
-#                 event_loop_cycle_id = str(event['event_loop_cycle_id']),
-#                 message=event['data']
-#             ))
-#             yield sse_event.serialize()
-            
-#         elif "current_tool_use" in event: 
-#             tool_input_str = event['current_tool_use']['input']
-#             logger.info(f"tool_input_str = {tool_input_str}")
-            
-#             try:
-#                 # Use json.loads() to parse JSON string to dictionary
-#                 tool_input_dict = json.loads(tool_input_str)
-#                 tool_input_dict['state'] = 'done'
-#             except Exception as e:
-#                 logger.error(f"Could not convert string || {tool_input_str} || to json.\n Error: {e}")
-#                 tool_input_dict = {'state': 'in-progress'}
-
-#             sse_event = SSEToolEvent    (
-#                 event = "tool",
-#                 data = SSEToolData(
-#                 event_loop_cycle_id= str(event['event_loop_cycle_id']),
-#                 tool_name = event['current_tool_use']['name'],
-#                 toolUseId = event['current_tool_use']['toolUseId'],
-#                 tool_input = tool_input_dict
-                
-#                                     )     
-#                                         )
-#             yield sse_event.serialize()
-
-    
-      
-# async def debug_stream():
-    
-#     async for response in stream_response():
-#         print(f"Yielded: {response}")
-#         # Write to file
-#         with open("debug_output.txt", "a") as f:
-#             f.write(f"{response}\n\n")
-
-# # Run it
-# asyncio.run(debug_stream())

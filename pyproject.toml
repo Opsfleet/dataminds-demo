@@ -7,6 +7,7 @@ requires-python = ">=3.13"
 dependencies = [
     "boto3>=1.39.14",
     "fastapi>=0.116.1",
+    "mcp-atlassian==0.6.5",
     "python-dotenv>=1.1.1",
     "strands-agents>=1.1.0",
     "strands-agents-builder>=0.1.7",
