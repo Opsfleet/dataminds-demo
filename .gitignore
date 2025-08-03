@@ -9,4 +9,11 @@ wheels/
 # Virtual environments
 .venv
 .env
+
+
+# repo related gitignores
 sessions/
+.kiro/
+repl_state/
+debug_output.txt
+*bak.*

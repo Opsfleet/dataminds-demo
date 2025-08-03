@@ -16,6 +16,7 @@ from fastapi import FastAPI, HTTPException, status
 from fastapi.responses import StreamingResponse 
 from pydantic import BaseModel, Field
 from typing import Optional, Dict, List,Any
+from uuid import UUID
 import json
 
 ## additional imports
@@ -46,7 +47,7 @@ KNOWLEDGE_BASE_ID = os.getenv("KNOWLEDGE_BASE_ID")
 ## SETTING UP CONFIGS
 model_temperature = 0.2
 system_prompt_path = 'src/agent/prompts/system_prompt.md'
-session_id="test",
+session_id="test_2",
 session_storage_dir="sessions/admin" 
 
 
@@ -82,8 +83,9 @@ conversation_manager = SlidingWindowConversationManager(
 agent = Agent(
     model=bedrock_model,
     system_prompt=system_prompt,
-    session_manager=session_manager,
+    # session_manager=session_manager,
     conversation_manager=conversation_manager,
+    callback_handler= None,
     tools = tools
             )
 
@@ -106,12 +108,29 @@ class ChatRequest(BaseModel):
 
 
 ## OUTPUT RESPONSE SERIALIZATION FOR STREAMING CHAT ENDPOINT
-class SSEEventMessage(BaseModel):
-    message: Any
+class SSEMessageData(BaseModel):
+    event_loop_cycle_id: str
+    message: str
+    
 
-class SSEEvent(BaseModel):
+class SSEToolData(BaseModel):
+    event_loop_cycle_id: str
+    tool_name: str
+    toolUseId: str
+    tool_input: Dict = Field(default_factory=lambda: {'state': 'in-progress'})
+
+    
+
+class SSEMessageEvent(BaseModel):
     event: str
-    data: SSEEventMessage
+    data: SSEMessageData
+    
+    def serialize(self):
+        return f"event: {self.event}\ndata: {json.dumps(self.data.dict())}\n\n"
+
+class SSEToolEvent(BaseModel):
+    event: str
+    data: SSEToolData
     
     def serialize(self):
         return f"event: {self.event}\ndata: {json.dumps(self.data.dict())}\n\n"
@@ -158,20 +177,40 @@ async def chat_endpoint(request: ChatRequest):
         logger.info(f"Using agent for processing")
 
         async for event in agent.stream_async(message): 
+            
             if "data" in event: 
-                sse_event = SSEEvent(
+                sse_event = SSEMessageEvent(
                     event="message", 
-                    data=SSEEventMessage(message=event['data'])
-                )
+                    data = SSEMessageData(
+                    event_loop_cycle_id = str(event['event_loop_cycle_id']),
+                    message=event['data']
+                ))
                 yield sse_event.serialize()
                 
             elif "current_tool_use" in event: 
-                sse_event = SSEEvent(
-                    event="tool", 
-                    data=SSEEventMessage(message=f"Using {event['current_tool_use']['name']}")
-                )
+                tool_input_str = event['current_tool_use']['input']
+                logger.info(f"tool_input_str = {tool_input_str}")
+                
+                try:
+                    # Use json.loads() to parse JSON string to dictionary
+                    tool_input_dict = json.loads(tool_input_str)
+                    tool_input_dict['state'] = 'done'
+                except Exception as e:
+                    # logger.error(f"Could not convert string || {tool_input_str} || to json.\n Error: {e}")
+                    tool_input_dict = {'state': 'in-progress'}
+
+                sse_event = SSEToolEvent    (
+                    event = "tool",
+                    data = SSEToolData(
+                    event_loop_cycle_id= str(event['event_loop_cycle_id']),
+                    tool_name = event['current_tool_use']['name'],
+                    toolUseId = event['current_tool_use']['toolUseId'],
+                    tool_input = tool_input_dict
+                    
+                                        )     
+                                            )
                 yield sse_event.serialize()
-            
+
     return StreamingResponse(stream_response(), media_type="text/event-stream") 
 
 
@@ -186,3 +225,64 @@ if __name__ == "__main__":
         log_level="info"
     ) 
 
+
+
+# import asyncio
+
+
+
+# async def stream_response(): 
+#     mes = """
+#     do to retrieve calls:
+#     search for "azintelecom products"
+#     search for "azintelecom technical solutions"
+#     compare findings
+#     """
+#     async for event in agent.stream_async(mes): 
+      
+        
+#         if "data" in event: 
+#             sse_event = SSEMessageEvent(
+#                 event="message", 
+#                 data = SSEMessageData(
+#                 event_loop_cycle_id = str(event['event_loop_cycle_id']),
+#                 message=event['data']
+#             ))
+#             yield sse_event.serialize()
+            
+#         elif "current_tool_use" in event: 
+#             tool_input_str = event['current_tool_use']['input']
+#             logger.info(f"tool_input_str = {tool_input_str}")
+            
+#             try:
+#                 # Use json.loads() to parse JSON string to dictionary
+#                 tool_input_dict = json.loads(tool_input_str)
+#                 tool_input_dict['state'] = 'done'
+#             except Exception as e:
+#                 logger.error(f"Could not convert string || {tool_input_str} || to json.\n Error: {e}")
+#                 tool_input_dict = {'state': 'in-progress'}
+
+#             sse_event = SSEToolEvent    (
+#                 event = "tool",
+#                 data = SSEToolData(
+#                 event_loop_cycle_id= str(event['event_loop_cycle_id']),
+#                 tool_name = event['current_tool_use']['name'],
+#                 toolUseId = event['current_tool_use']['toolUseId'],
+#                 tool_input = tool_input_dict
+                
+#                                     )     
+#                                         )
+#             yield sse_event.serialize()
+
+    
+      
+# async def debug_stream():
+    
+#     async for response in stream_response():
+#         print(f"Yielded: {response}")
+#         # Write to file
+#         with open("debug_output.txt", "a") as f:
+#             f.write(f"{response}\n\n")
+
+# # Run it
+# asyncio.run(debug_stream())
