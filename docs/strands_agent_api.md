@@ -117,31 +117,25 @@ CONFLUENCE_API_TOKEN = os.getenv('CONFLUENCE_API_TOKEN')
 ##### MCP Client Instantiation
 
 ```python
-# Initialize Confluence MCP client
-async def setup_confluence_mcp():
-    server_params = StdioServerParameters(
-        command="uvx",
-        args=["mcp-server-confluence"],
-        env={
-            "CONFLUENCE_BASE_URL": CONFLUENCE_BASE_URL,
-            "CONFLUENCE_USERNAME": CONFLUENCE_USERNAME,
-            "CONFLUENCE_API_TOKEN": CONFLUENCE_API_TOKEN
-        }
-    )
-    
-    async with stdio_client(server_params) as (read, write):
-        async with ClientSession(read, write) as session:
-            # Initialize the MCP session
-            await session.initialize()
-            
-            # Get available tools from Confluence MCP
-            mcp_tools = await session.list_tools()
-            
-            return session, mcp_tools
 
-# Initialize tools including MCP tools
-confluence_session, mcp_tools = await setup_confluence_mcp()
-tools = [retrieve] + [tool for tool in mcp_tools]
+confluence_mcp_client = MCPClient(lambda: stdio_client(
+    StdioServerParameters(
+        command="uvx",
+        args=[
+            "mcp-atlassian",
+            f"--confluence-url={CONFLUENCE_URL}",
+            f"--confluence-username={CONFLUENCE_USERNAME}",
+            f"--confluence-token={CONFLUENCE_TOKEN}",
+            f"--confluence-spaces-filter={CONFLUENCE_SPACE_KEY}",
+            f"--enabled-tools={mcp_enabled_tools}"
+        ]
+    )
+))
+
+confluence_mcp_client.__enter__()
+confluence_mcp_tools = confluence_mcp_client.list_tools_sync()
+tools = tools + [confluence_mcp_tools]
+
 ```
 
 ### F. Putting It All Together
