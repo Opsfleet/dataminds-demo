@@ -15,6 +15,6 @@ This project consists of two main components that work together to provide an AI
 
 ## Architecture
 
-![Architecture Diagram](assets/example.svg)
+![Architecture Diagram](assets/overview.svg)
 
 The system follows a client-server architecture where the Streamlit frontend communicates with the agent API backend to process user requests and maintain conversation sessions.

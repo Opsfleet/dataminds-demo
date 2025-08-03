@@ -17,3 +17,5 @@ sessions/
 repl_state/
 debug_output.txt
 *bak.*
+docs/assets/iteration*
+docs/assets/*drawio*

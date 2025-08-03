@@ -83,13 +83,65 @@ conversation_manager = SlidingWindowConversationManager(
 
 ### E. Tools
 
-Tools provide the agent with external capabilities like knowledge base retrieval.
+Tools provide the agent with external capabilities like knowledge base retrieval and Confluence integration.
+
+#### Bedrock Knowledge Base Retrieval Tool
+
+The retrieve tool integrates with AWS Bedrock Knowledge Base for document retrieval and RAG capabilities.
 
 ```python
 from strands_tools import retrieve
 
-# Initialize tools
+# Initialize tools with Bedrock knowledge base retrieval
 tools = [retrieve]
+```
+
+#### MCP Package Imports
+
+```python
+from mcp import ClientSession, StdioServerParameters
+from mcp.client.stdio import stdio_client
+```
+
+##### Confluence Environment Setup
+
+```python
+import os
+
+# Confluence MCP environment variables
+CONFLUENCE_BASE_URL = os.getenv('CONFLUENCE_BASE_URL')
+CONFLUENCE_USERNAME = os.getenv('CONFLUENCE_USERNAME') 
+CONFLUENCE_API_TOKEN = os.getenv('CONFLUENCE_API_TOKEN')
+```
+
+##### MCP Client Instantiation
+
+```python
+# Initialize Confluence MCP client
+async def setup_confluence_mcp():
+    server_params = StdioServerParameters(
+        command="uvx",
+        args=["mcp-server-confluence"],
+        env={
+            "CONFLUENCE_BASE_URL": CONFLUENCE_BASE_URL,
+            "CONFLUENCE_USERNAME": CONFLUENCE_USERNAME,
+            "CONFLUENCE_API_TOKEN": CONFLUENCE_API_TOKEN
+        }
+    )
+    
+    async with stdio_client(server_params) as (read, write):
+        async with ClientSession(read, write) as session:
+            # Initialize the MCP session
+            await session.initialize()
+            
+            # Get available tools from Confluence MCP
+            mcp_tools = await session.list_tools()
+            
+            return session, mcp_tools
+
+# Initialize tools including MCP tools
+confluence_session, mcp_tools = await setup_confluence_mcp()
+tools = [retrieve] + [tool for tool in mcp_tools]
 ```
 
 ### F. Putting It All Together
