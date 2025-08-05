@@ -76,7 +76,6 @@ tools = [retrieve]
 
 
 CONFLUENCE_URL =os.getenv('CONFLUENCE_URL')
-
 CONFLUENCE_USERNAME = os.getenv('CONFLUENCE_USERNAME')
 CONFLUENCE_TOKEN = os.getenv('CONFLUENCE_TOKEN')
 CONFLUENCE_SPACE_KEY = os.getenv('CONFLUENCE_SPACE_KEY')
@@ -118,7 +117,7 @@ conversation_manager = SlidingWindowConversationManager(
 agent = Agent(
     model=bedrock_model,
     system_prompt=system_prompt,
-    # session_manager=session_manager,
+    session_manager=session_manager,
     conversation_manager=conversation_manager,
     callback_handler= None,
     tools = tools

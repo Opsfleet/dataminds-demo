@@ -6,6 +6,10 @@ import time
 import logging
 import threading
 from concurrent.futures import ThreadPoolExecutor
+import os
+
+os.environ['STREAMLIT_SERVER_REQUEST_TIMEOUT'] = '120'
+
 
 # Page configuration
 st.set_page_config(
